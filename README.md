@@ -1,6 +1,10 @@
 # aimtrainer
 
-- exe.
-- 1 normal mode.
-- 2 floating mode.
-- no changes in senstivity for now.
+- NORMAL MODE: PRESS NUMBER 1.
+- POPCORN MODE: PRESS NUMBER 2.
+- PRESS ESC TO EXIT.
+
+BUGS:
+
+- TEARING AND VSYNC FIXED.
+- POPCORN MODE TOO FAST NOT FIXED.

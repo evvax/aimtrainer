@@ -8,14 +8,12 @@
 #define WIDTH 1920
 #define HEIGHT 1080
 #define RADIUS 20
-#define SIZE_TARGETS 6
-#define TARGET_LIFETIME 3.0f   // segundos que dura cada pelota
-#define FPS 60.0f
+#define MAX_TARGETS 6
 /* ------------------------ */
 
 typedef enum {
     MODE_FLICK,
-    MODE_DYNAMIC_SIZE
+    MODE_TRACKING
 } GameMode;
 
 typedef struct {
@@ -24,9 +22,9 @@ typedef struct {
 
 typedef struct {
     float x, y;
-    float r;
-    float max_r;
-} SizeTarget;
+    float speed;
+    int r;
+} MovingTarget;
 
 /* -------- DRAW CIRCLE -------- */
 void draw_circle(SDL_Renderer* r, int cx, int cy, int rad) {
@@ -46,7 +44,7 @@ int hit(int tx, int ty, int tr, int mx, int my) {
     return dx*dx + dy*dy <= tr*tr;
 }
 
-/* -------- FLICK TARGET -------- */
+/* -------- TARGETS -------- */
 Target new_target() {
     Target t;
     t.r = RADIUS;
@@ -55,13 +53,12 @@ Target new_target() {
     return t;
 }
 
-/* -------- SIZE TARGET -------- */
-SizeTarget new_size_target() {
-    SizeTarget t;
-    t.max_r = 20 + rand() % 40;  // tamaños variados
-    t.r = t.max_r;
-    t.x = rand() % (WIDTH - (int)(2*t.max_r)) + t.max_r;
-    t.y = rand() % (HEIGHT - (int)(2*t.max_r)) + t.max_r;
+MovingTarget new_moving_target() {
+    MovingTarget t;
+    t.r = 10 + rand() % 30;
+    t.x = rand() % (WIDTH - 2*t.r) + t.r;
+    t.y = -(rand() % HEIGHT);
+    t.speed = 2 + rand() % 6;
     return t;
 }
 
@@ -90,13 +87,14 @@ int main() {
 
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
+    /* ---- Game state ---- */
     GameMode mode = MODE_FLICK;
 
     Target flick_target = new_target();
 
-    SizeTarget size_targets[SIZE_TARGETS];
-    for (int i = 0; i < SIZE_TARGETS; i++)
-        size_targets[i] = new_size_target();
+    MovingTarget tracking_targets[MAX_TARGETS];
+    for (int i = 0; i < MAX_TARGETS; i++)
+        tracking_targets[i] = new_moving_target();
 
     SDL_Event event;
     int running = 1;
@@ -131,12 +129,12 @@ int main() {
                         flick_target = new_target();
                     }
                 } else {
-                    for (int i = 0; i < SIZE_TARGETS; i++) {
-                        if (hit((int)size_targets[i].x,
-                                (int)size_targets[i].y,
-                                (int)size_targets[i].r,
+                    for (int i = 0; i < MAX_TARGETS; i++) {
+                        if (hit((int)tracking_targets[i].x,
+                                (int)tracking_targets[i].y,
+                                tracking_targets[i].r,
                                 mx, my)) {
-                            size_targets[i] = new_size_target();
+                            tracking_targets[i] = new_moving_target();
                         }
                     }
                 }
@@ -144,6 +142,7 @@ int main() {
 
             /* ---- Keys ---- */
             if (event.type == SDL_KEYDOWN) {
+
                 if (event.key.keysym.sym == SDLK_ESCAPE)
                     running = 0;
 
@@ -151,30 +150,27 @@ int main() {
                     mode = MODE_FLICK;
 
                 if (event.key.keysym.sym == SDLK_2)
-                    mode = MODE_DYNAMIC_SIZE;
+                    mode = MODE_TRACKING;
             }
         }
 
-        /* ---- UPDATE MODE 2 (SHRINK CONTROLADO) ---- */
-        if (mode == MODE_DYNAMIC_SIZE) {
-            for (int i = 0; i < SIZE_TARGETS; i++) {
-
-                float shrink_per_frame =
-                    size_targets[i].max_r / (TARGET_LIFETIME * FPS);
-
-                size_targets[i].r -= shrink_per_frame;
-
-                if (size_targets[i].r <= 0) {
-                    size_targets[i] = new_size_target();
-                }
+        /* ---- Update tracking ---- */
+        if (mode == MODE_TRACKING) {
+            for (int i = 0; i < MAX_TARGETS; i++) {
+                tracking_targets[i].y += tracking_targets[i].speed;
+                if (tracking_targets[i].y - tracking_targets[i].r > HEIGHT)
+                    tracking_targets[i] = new_moving_target();
             }
         }
 
-        /* ---- RENDER ---- */
+        /* ---- Render ---- */
         SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
         SDL_RenderClear(renderer);
 
-        SDL_SetRenderDrawColor(renderer, 255, 80, 80, 255);
+        if (mode == MODE_FLICK)
+            SDL_SetRenderDrawColor(renderer, 255, 80, 80, 255);
+        else
+            SDL_SetRenderDrawColor(renderer, 80, 180, 255, 255);
 
         if (mode == MODE_FLICK) {
             draw_circle(renderer,
@@ -182,11 +178,11 @@ int main() {
                 flick_target.y,
                 flick_target.r);
         } else {
-            for (int i = 0; i < SIZE_TARGETS; i++) {
+            for (int i = 0; i < MAX_TARGETS; i++) {
                 draw_circle(renderer,
-                    (int)size_targets[i].x,
-                    (int)size_targets[i].y,
-                    (int)size_targets[i].r);
+                    (int)tracking_targets[i].x,
+                    (int)tracking_targets[i].y,
+                    tracking_targets[i].r);
             }
         }
 
@@ -198,10 +194,8 @@ int main() {
                                       cursor_x, cursor_y + 6);
 
         SDL_RenderPresent(renderer);
-        SDL_Delay(16); // ~60 FPS
     }
 
     SDL_Quit();
     return 0;
 }
-
